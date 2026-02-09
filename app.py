@@ -7,8 +7,8 @@ from azure.core.credentials import AzureKeyCredential
 
 #to get the Azure key and endpoint from .env file
 load_dotenv()
-key = os.getenv("my_key")
-my_endpoint = os.getenv("my_endpoint")
+key = os.getenv("AZURE_API_KEY")
+my_endpoint = os.getenv("AZURE_ENDPOINT")
 
 
 #function to authenticate the client
