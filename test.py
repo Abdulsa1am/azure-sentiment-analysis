@@ -9,10 +9,10 @@ my_endpoint = os.getenv("my_endpoint")
 
 def authenticate_client():
     keyObject = AzureKeyCredential(key)
-    clint = TextAnalyticsClient(
+    client = TextAnalyticsClient(
             endpoint=my_endpoint, 
             credential=keyObject)
-    return clint
+    return client
 
 def sentiment_analysis_example(client):
     try:
