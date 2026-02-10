@@ -5,7 +5,11 @@ from dotenv import load_dotenv
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.core.credentials import AzureKeyCredential
 
-#to get the Azure key and endpoint from .env file
+# Azure batch API limit: max 10 documents per request
+AZURE_BATCH_LIMIT = 10
+
+st.set_page_config(page_title="Sentiment Analysis")
+
 load_dotenv()
 key = os.getenv("AZURE_API_KEY")
 my_endpoint = os.getenv("AZURE_ENDPOINT")
@@ -15,17 +19,29 @@ if not key or not my_endpoint:
     st.stop()
 
 
-#function to authenticate the client
 @st.cache_resource
 def authenticate_client():
-    keyObject = AzureKeyCredential(key)
+    """Authenticate and return an Azure Text Analytics client.
+
+    Returns:
+        TextAnalyticsClient: An authenticated client instance.
+    """
+    key_credential = AzureKeyCredential(key)
     client = TextAnalyticsClient(
             endpoint=my_endpoint, 
-            credential=keyObject)
+            credential=key_credential)
     return client
 
-#function to perform sentiment analysis
 def analyze_single(client, text):
+    """Analyze sentiment for a single text string.
+
+    Args:
+        client: Authenticated Azure Text Analytics client.
+        text: The text to analyze.
+
+    Returns:
+        dict: Sentiment label and positive, neutral, negative confidence scores.
+    """
     try:
         response = client.analyze_sentiment(documents=[text])[0]
         return {
@@ -45,36 +61,59 @@ def analyze_single(client, text):
         }
 
 def analyze_batch(client, texts):
-    try:
-        response = client.analyze_sentiment(documents=texts)
-        results = []
-        for doc in response:
-            if not doc.is_error:
-                results.append({
-                    "sentiment_result": doc.sentiment,
-                    "positive_score": doc.confidence_scores.positive,
-                    "neutral_score": doc.confidence_scores.neutral,
-                    "negative_score": doc.confidence_scores.negative
-                })
-            else:
-                results.append({
-                    "sentiment_result": "Error",
-                    "positive_score": 0,
-                    "neutral_score": 0,
-                    "negative_score": 0
-                })
-        return results
-    except Exception as err:
-        st.error(f"Connection Failed: {err}")
-        return [{
-            "sentiment_result": "Error",
-            "positive_score": 0,
-            "neutral_score": 0,
-            "negative_score": 0
-        } for _ in texts]
+    """Analyze sentiment for a list of texts, chunked to respect Azure's 10-doc limit.
 
-#function to handle the files
-def file_analysis(uploaded_file, client):
+    Args:
+        client: Authenticated Azure Text Analytics client.
+        texts: List of text strings to analyze.
+
+    Returns:
+        list[dict]: A list of sentiment results, one per input text.
+    """
+    all_results = []
+
+    for i in range(0, len(texts), AZURE_BATCH_LIMIT):
+        chunk = texts[i : i + AZURE_BATCH_LIMIT]
+        try:
+            response = client.analyze_sentiment(documents=chunk)
+            for doc in response:
+                if not doc.is_error:
+                    all_results.append({
+                        "sentiment_result": doc.sentiment,
+                        "positive_score": doc.confidence_scores.positive,
+                        "neutral_score": doc.confidence_scores.neutral,
+                        "negative_score": doc.confidence_scores.negative
+                    })
+                else:
+                    all_results.append({
+                        "sentiment_result": "Error",
+                        "positive_score": 0,
+                        "neutral_score": 0,
+                        "negative_score": 0,
+                        "error_detail": f"{doc.error.code}: {doc.error.message}"
+                    })
+        except Exception as err:
+            st.error(f"Batch analysis failed: {err}")
+            all_results.extend([{
+                "sentiment_result": "Error",
+                "positive_score": 0,
+                "neutral_score": 0,
+                "negative_score": 0
+            }] * len(chunk))
+
+    return all_results
+
+def file_analysis(uploaded_file, client, max_rows):
+    """Read an uploaded CSV/Excel file and run batch sentiment analysis.
+
+    Args:
+        uploaded_file: Streamlit UploadedFile object (.csv or .xlsx).
+        client: Authenticated Azure Text Analytics client.
+        max_rows: Maximum number of rows to analyze.
+
+    Returns:
+        DataFrame with sentiment results appended, or None on failure.
+    """
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith('.csv'):
@@ -88,10 +127,19 @@ def file_analysis(uploaded_file, client):
                 st.error("Please use the template file")
                 return None
 
-            clean_df = df[['ID', 'review_text']].head(10).copy()
-            text_list = clean_df['review_text'].astype(str).tolist()
+            clean_df = df[['ID', 'review_text']].head(max_rows).copy()
 
-            with st.spinner("Analyzing the first 10 rows..."):
+            # Sanitize: drop empty / whitespace-only / NaN rows
+            clean_df['review_text'] = clean_df['review_text'].astype(str).str.strip()
+            clean_df = clean_df[clean_df['review_text'].ne('') & clean_df['review_text'].ne('nan')]
+
+            if clean_df.empty:
+                st.warning("No valid review text found after filtering empty rows.")
+                return None
+
+            text_list = clean_df['review_text'].tolist()
+
+            with st.spinner(f"Analyzing {len(text_list)} rows..."):
                 batch_results = analyze_batch(client, text_list)
             
             if batch_results:
@@ -99,12 +147,12 @@ def file_analysis(uploaded_file, client):
                 final_df = pd.concat([clean_df.reset_index(drop=True), sentiment_df], axis=1)
                 return final_df
 
-            return final_df
+            return None
 
         except Exception as e:
-            st.error("Error reading file")
+            st.error(f"Error reading file: {e}")
             return None
-    return None    
+    return None
     
 
 
@@ -117,13 +165,26 @@ if __name__ == "__main__":
     with col1:
         my_text_area = st.text_area("Sentence Analysis:", height=160, placeholder="Type your sentence here...")
     with col2:
-        file = st.file_uploader("Choose a file (the result is limited to 10 records only)", type=["csv", "xlsx"])
+        file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
     
+    max_rows = st.slider("Max rows to analyze", min_value=1, max_value=10, value=0, step=1)
+
+    # Download template button
+    template_path = os.path.join(os.path.dirname(__file__), "data", "sample_reviews.csv")
+    if os.path.exists(template_path):
+        with open(template_path, "rb") as tpl:
+            st.download_button(
+                "⬇️ Download Template CSV",
+                data=tpl,
+                file_name="sample_reviews.csv",
+                mime="text/csv",
+            )
+
     choice = st.radio("Select the input type:", ("Sentence", "Excel File"))
-    analyzebutton = st.button("Analyze")
+    analyze_button = st.button("Analyze")
     azure_client = authenticate_client()
 
-    if analyzebutton:
+    if analyze_button:
         if choice=="Sentence":
             
             if my_text_area.strip() != "":
@@ -133,7 +194,7 @@ if __name__ == "__main__":
         
         else:
             if file:
-                result_df= file_analysis(file, azure_client)
+                result_df = file_analysis(file, azure_client, max_rows)
                 if result_df is not None:
                     st.dataframe(result_df, hide_index=True)
                 else:

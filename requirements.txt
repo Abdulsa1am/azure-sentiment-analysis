@@ -34,7 +34,6 @@ rpds-py==0.30.0
 six==1.17.0
 smmap==5.0.2
 streamlit==1.54.0
-streamlit[openpyxl]
 tenacity==9.1.4
 toml==0.10.2
 tornado==6.5.4
@@ -42,9 +41,4 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 watchdog==6.0.0
-streamlit
-pandas
-python-dotenv
-azure-ai-textanalytics
-azure-core
-openpyxl
+openpyxl==3.1.5
