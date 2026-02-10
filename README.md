@@ -69,7 +69,13 @@ Before you begin, ensure you have the following:
    - View the sentiment results with confidence scores
 
    **Option 2: File Analysis**
-   - Prepare a CSV or XLSX file with columns: `ID` and `review_text`
+   - Prepare a CSV or XLSX file with the following structure:
+     ```
+     ID,review_text
+     1,"This product is amazing!"
+     2,"Not satisfied with the service"
+     3,"It's okay, nothing special"
+     ```
    - Upload the file using the file uploader
    - Select "Excel File" as the input type
    - Click the "Analyze" button
@@ -81,7 +87,7 @@ Before you begin, ensure you have the following:
 azure-sentiment-analysis/
 │
 ├── app.py                 # Main Streamlit application
-├── azure_service.py       # Azure Text Analytics service integration (placeholder)
+├── azure_service.py       # Azure Text Analytics service utilities
 ├── test.py                # Test script for Azure connection
 ├── requirements.txt       # Python dependencies
 ├── .env                   # Environment variables (not tracked in git)
@@ -94,7 +100,7 @@ azure-sentiment-analysis/
 ### File Descriptions
 
 - **app.py**: The main application file containing the Streamlit UI and sentiment analysis logic
-- **azure_service.py**: Placeholder for Azure service integration
+- **azure_service.py**: Additional Azure service utilities (currently minimal)
 - **test.py**: Test script to verify Azure Text Analytics connection
 - **requirements.txt**: Lists all Python package dependencies
 - **data/**: Contains sample CSV files for testing the file upload feature
