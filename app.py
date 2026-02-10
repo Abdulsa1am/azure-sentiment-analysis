@@ -10,8 +10,13 @@ load_dotenv()
 key = os.getenv("AZURE_API_KEY")
 my_endpoint = os.getenv("AZURE_ENDPOINT")
 
+if not key or not my_endpoint:
+    st.error("Missing Azure credentials. Please set AZURE_API_KEY and AZURE_ENDPOINT in your .env file.")
+    st.stop()
+
 
 #function to authenticate the client
+@st.cache_resource
 def authenticate_client():
     keyObject = AzureKeyCredential(key)
     client = TextAnalyticsClient(
@@ -20,7 +25,7 @@ def authenticate_client():
     return client
 
 #function to perform sentiment analysis
-def sentiment_analysis(client, text):
+def analyze_single(client, text):
     try:
         response = client.analyze_sentiment(documents=[text])[0]
         return {
@@ -39,6 +44,35 @@ def sentiment_analysis(client, text):
             "negative_score": 0
         }
 
+def analyze_batch(client, texts):
+    try:
+        response = client.analyze_sentiment(documents=texts)
+        results = []
+        for doc in response:
+            if not doc.is_error:
+                results.append({
+                    "sentiment_result": doc.sentiment,
+                    "positive_score": doc.confidence_scores.positive,
+                    "neutral_score": doc.confidence_scores.neutral,
+                    "negative_score": doc.confidence_scores.negative
+                })
+            else:
+                results.append({
+                    "sentiment_result": "Error",
+                    "positive_score": 0,
+                    "neutral_score": 0,
+                    "negative_score": 0
+                })
+        return results
+    except Exception as err:
+        st.error(f"Connection Failed: {err}")
+        return [{
+            "sentiment_result": "Error",
+            "positive_score": 0,
+            "neutral_score": 0,
+            "negative_score": 0
+        } for _ in texts]
+
 #function to handle the files
 def file_analysis(uploaded_file, client):
     if uploaded_file is not None:
@@ -55,14 +89,15 @@ def file_analysis(uploaded_file, client):
                 return None
 
             clean_df = df[['ID', 'review_text']].head(10).copy()
-            
-            st.info("Analyzing the first 10 rows...")
+            text_list = clean_df['review_text'].astype(str).tolist()
 
-            sentiment_data = clean_df['review_text'].apply(
-                lambda x: pd.Series(sentiment_analysis(client, x))
-            )
+            with st.spinner("Analyzing the first 10 rows..."):
+                batch_results = analyze_batch(client, text_list)
             
-            final_df = pd.concat([clean_df, sentiment_data], axis=1)
+            if batch_results:
+                sentiment_df = pd.DataFrame(batch_results)
+                final_df = pd.concat([clean_df.reset_index(drop=True), sentiment_df], axis=1)
+                return final_df
 
             return final_df
 
@@ -82,27 +117,24 @@ if __name__ == "__main__":
     with col1:
         my_text_area = st.text_area("Sentence Analysis:", height=160, placeholder="Type your sentence here...")
     with col2:
-        file = st.file_uploader("Choose a file (the resault is limited to 10 records only)", type=["csv", "xlsx"])
+        file = st.file_uploader("Choose a file (the result is limited to 10 records only)", type=["csv", "xlsx"])
     
     choice = st.radio("Select the input type:", ("Sentence", "Excel File"))
     analyzebutton = st.button("Analyze")
-    
+    azure_client = authenticate_client()
+
     if analyzebutton:
         if choice=="Sentence":
             
             if my_text_area.strip() != "":
-                st.table(sentiment_analysis(authenticate_client(), my_text_area))
+                st.table(analyze_single(azure_client, my_text_area))
             else:
                 st.warning("Please enter a sentence to analyze.")
         
-    
-        if choice=="Excel File":
+        else:
             if file:
-                resault_df= file_analysis(file, authenticate_client())
-                if resault_df is not None:
-                    st.write(resault_df)
+                result_df= file_analysis(file, azure_client)
+                if result_df is not None:
+                    st.dataframe(result_df, hide_index=True)
                 else:
                     st.warning("Please upload a file")
-
-
-    
