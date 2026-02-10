@@ -21,16 +21,57 @@ def authenticate_client():
 
 #function to perform sentiment analysis
 def sentiment_analysis(client, text):
-    global sentiment_result, positive_score, neutral_score, negative_score
     try:
         response = client.analyze_sentiment(documents=[text])[0]
-        sentiment_result= response.sentiment 
-        positive_score = response.confidence_scores.positive
-        neutral_score = response.confidence_scores.neutral
-        negative_score = response.confidence_scores.negative
+        return {
+            "sentiment_result": response.sentiment,
+            "positive_score": response.confidence_scores.positive,
+            "neutral_score": response.confidence_scores.neutral,
+            "negative_score": response.confidence_scores.negative
+        }
 
     except Exception as err:
-        print(f"Connection Failed: {err}")
+        st.error(f"Connection Failed: {err}")
+        return {
+            "sentiment_result": "Error",
+            "positive_score": 0,
+            "neutral_score": 0,
+            "negative_score": 0
+        }
+
+#function to handle the files
+def file_analysis(uploaded_file, client):
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file)
+            else:
+                uploaded_file.seek(0)
+                df = pd.read_excel(uploaded_file)
+
+            if 'ID' not in df.columns or 'review_text' not in df.columns:
+                st.error("Please use the template file")
+                return None
+
+            clean_df = df[['ID', 'review_text']].head(10).copy()
+            
+            st.info("Analyzing the first 10 rows...")
+
+            sentiment_data = clean_df['review_text'].apply(
+                lambda x: pd.Series(sentiment_analysis(client, x))
+            )
+            
+            final_df = pd.concat([clean_df, sentiment_data], axis=1)
+
+            return final_df
+
+        except Exception as e:
+            st.error("Error reading file")
+            return None
+    return None    
+    
+
 
 if __name__ == "__main__":
     st.header("Sentiment Analysis With Azure Text Analytics")
@@ -41,19 +82,27 @@ if __name__ == "__main__":
     with col1:
         my_text_area = st.text_area("Sentence Analysis:", height=160, placeholder="Type your sentence here...")
     with col2:
-        file = st.file_uploader("Choose a file (TODO)", type=["cvs", "xlsx"])
+        file = st.file_uploader("Choose a file (the resault is limited to 10 records only)", type=["csv", "xlsx"])
     
-    st.radio("Select the input type: (TODO)", ("Sentence", "Excel File"))
+    choice = st.radio("Select the input type:", ("Sentence", "Excel File"))
+    analyzebutton = st.button("Analyze")
+    
+    if analyzebutton:
+        if choice=="Sentence":
+            
+            if my_text_area.strip() != "":
+                st.table(sentiment_analysis(authenticate_client(), my_text_area))
+            else:
+                st.warning("Please enter a sentence to analyze.")
+        
+    
+        if choice=="Excel File":
+            if file:
+                resault_df= file_analysis(file, authenticate_client())
+                if resault_df is not None:
+                    st.write(resault_df)
+                else:
+                    st.warning("Please upload a file")
 
-    if st.button("Analyze"):
-        if my_text_area.strip() != "":
-            sentiment_analysis(authenticate_client(),my_text_area)
-            st.table(
-           {"Sentiment": sentiment_result,
-            "Positive Score": positive_score,
-            "Neutral Score": neutral_score,
-            "Negative Score": negative_score})
-        else:
-            st.warning("Please enter a sentence to analyze.")
 
     
