@@ -158,7 +158,7 @@ def file_analysis(uploaded_file, client, max_rows):
 
 
 if __name__ == "__main__":
-    st.header("Sentiment Analysis With Azure Text Analytics")
+    st.header("Azure Sentiment Analysis")
     st.markdown(" ")
     st.subheader("Welcome! Enter a sentence or upload a file to start.")
 
