@@ -159,43 +159,66 @@ def file_analysis(uploaded_file, client, max_rows):
 if __name__ == "__main__":
     st.header("Sentiment Analysis With Azure Text Analytics")
     st.markdown(" ")
-    st.subheader("Welcome! Please upload your sentence or an Excel file to start.")
-        
-    col1, col2 = st.columns(2)
-    with col1:
-        my_text_area = st.text_area("Sentence Analysis:", height=160, placeholder="Type your sentence here...")
-    with col2:
-        file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
+    st.subheader("Welcome! Enter a sentence or upload a file to start.")
+
     
-    max_rows = st.slider("Max rows to analyze", min_value=1, max_value=10, value=0, step=1)
+    st.markdown("""
+    <style>
+    div[data-baseweb="tab-list"] {
+        display: flex;
+        width: 100%;}
 
-    # Download template button
-    template_path = os.path.join(os.path.dirname(__file__), "data", "sample_reviews.csv")
-    if os.path.exists(template_path):
-        with open(template_path, "rb") as tpl:
-            st.download_button(
-                "⬇️ Download Template CSV",
-                data=tpl,
-                file_name="sample_reviews.csv",
-                mime="text/csv",
-            )
+div[data-baseweb="tab-list"] > button {flex: 1;}
 
-    choice = st.radio("Select the input type:", ("Sentence", "Excel File"))
-    analyze_button = st.button("Analyze")
+    /* Style the Analyze buttons with red background */
+    button[kind="primary"] {
+        background-color: #ff4b4b !important;
+        border-color: #ff4b4b !important;
+        color: white !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #e03e3e !important;
+        border-color: #e03e3e !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     azure_client = authenticate_client()
 
-    if analyze_button:
-        if choice=="Sentence":
-            
+    tab_text, tab_file = st.tabs(["Analyze Text", "Analyze File"])
+
+    with tab_text:
+        my_text_area = st.text_area("Enter your text:", height=160, placeholder="Enter text to analyze...")
+        if st.button("Analyze", key="btn_text", type="primary", use_container_width=True):
             if my_text_area.strip() != "":
                 st.table(analyze_single(azure_client, my_text_area))
             else:
                 st.warning("Please enter a sentence to analyze.")
-        
-        else:
+
+    with tab_file:
+        file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
+        max_rows = st.slider("Max rows to analyze", min_value=1, max_value=10, value=1, step=1)
+
+        # Side-by-side buttons: Download | Analyze
+        col1, col2 = st.columns(2)
+        with col1:
+            template_path = os.path.join(os.path.dirname(__file__), "data", "sample_reviews.csv")
+            if os.path.exists(template_path):
+                with open(template_path, "rb") as tpl:
+                    st.download_button(
+                        "Download Template CSV",
+                        data=tpl,
+                        file_name="sample_reviews.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+        with col2:
+            analyze_clicked = st.button("Analyze", key="btn_file", type="primary", use_container_width=True)
+
+        if analyze_clicked:
             if file:
                 result_df = file_analysis(file, azure_client, max_rows)
                 if result_df is not None:
                     st.dataframe(result_df, hide_index=True)
-                else:
-                    st.warning("Please upload a file")
+            else:
+                st.warning("Please upload a file.")
