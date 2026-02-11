@@ -18,7 +18,7 @@ A **Streamlit** web application that performs real-time sentiment analysis using
 | Layer       | Technology                  |
 | ----------- | --------------------------- |
 | Frontend    | Streamlit                   |
-| AI Service  | Azure AI Text Analytics 5.3 |
+| AI Service  | Azure sentiment analysis    |
 | Data        | Pandas, OpenPyXL            |
 | Environment | python-dotenv               |
 
