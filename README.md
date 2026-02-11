@@ -19,7 +19,7 @@ A **Streamlit** web application that performs real-time sentiment analysis using
 | ----------- | --------------------------- |
 | Frontend    | Streamlit                   |
 | AI Service  | Azure sentiment analysis    |
-| Data        | Pandas, OpenPyXL            |
+| Data        | Pandas                      |
 | Environment | python-dotenv               |
 
 ---
@@ -106,11 +106,4 @@ azure-sentiment-analysis/
 ## Limitations
 
 - Each Azure API call is limited to **10 documents**; larger files are automatically chunked.
-- Requires an active **Azure AI Text Analytics** resource with a valid API key.
-- Empty or whitespace-only review rows are automatically filtered out before analysis.
-
----
-
-## License
-
-This project is open-source. Feel free to use and modify it as needed.
+- Requires an active **Azure Language service** resource with a valid API key.
