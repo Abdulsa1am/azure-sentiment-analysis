@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import pandas as pd
+import altair as alt
 from dotenv import load_dotenv
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.core.credentials import AzureKeyCredential
@@ -220,5 +221,43 @@ div[data-baseweb="tab-list"] > button {flex: 1;}
                 result_df = file_analysis(file, azure_client, max_rows)
                 if result_df is not None:
                     st.dataframe(result_df, hide_index=True)
+
+                    # Metric Cards 
+                    total = len(result_df)
+                    pos_count = int((result_df["sentiment_result"] == "positive").sum())
+                    neu_count = int((result_df["sentiment_result"] == "neutral").sum())
+                    neg_count = int((result_df["sentiment_result"] == "negative").sum())
+
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Total Reviews", total)
+                    m2.metric("Positive", pos_count)
+                    m3.metric("Neutral", neu_count)
+                    m4.metric("Negative", neg_count)
+
+                    # Donut Chart
+                    sentiment_counts = (
+                        result_df["sentiment_result"]
+                        .value_counts()
+                        .reset_index()
+                    )
+                    sentiment_counts.columns = ["Sentiment", "Count"]
+
+                    color_scale = alt.Scale(
+                        domain=["positive", "neutral", "negative"],
+                        range=["#2ecc71", "#95a5a6", "#e74c3c"],
+                    )
+
+                    donut = (
+                        alt.Chart(sentiment_counts)
+                        .mark_arc(innerRadius=60)
+                        .encode(
+                            theta=alt.Theta("Count:Q"),
+                            color=alt.Color("Sentiment:N", scale=color_scale),
+                            tooltip=["Sentiment", "Count"],
+                        )
+                        .properties(title="Sentiment Distribution", height=350)
+                    )
+
+                    st.altair_chart(donut, use_container_width=True)
             else:
                 st.warning("Please upload a file.")

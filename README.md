@@ -10,6 +10,7 @@ A **Streamlit** web application that performs real-time sentiment analysis using
 - **Batch File Analysis** — Upload a `.csv` or `.xlsx` file to analyze up to 10 reviews per API call, with automatic chunking for larger datasets.
 - **Downloadable Template** — A ready-made `sample_reviews.csv` template is included so you can get started quickly.
 - **Tabbed Interface** — Clean, tab-based UI separating text and file analysis workflows.
+- **Results Visualization** — File analysis results include summary metric cards (total, positive, neutral, negative counts) and an interactive donut chart showing overall sentiment distribution.
 
 ---
 
